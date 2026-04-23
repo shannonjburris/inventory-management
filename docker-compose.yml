@@ -1,0 +1,43 @@
+services:
+  # ---- MongoDB ----
+  mongo:
+    image: mongo:7.0
+    container_name: inventory_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: inventory
+    volumes:
+      # Named volume: data persists across `docker-compose down` / `up` cycles.
+      # Run `docker-compose down -v` to wipe data and start fresh.
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"   # exposed so Compass / mongosh can connect locally
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---- Flask API ----
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventory_api
+    restart: unless-stopped
+    environment:
+      MONGO_URI: "mongodb://mongo:27017/inventory"   # 'mongo' = the service name above
+      APP_ENV: "production"
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongo:
+        # The API container won't start until the Mongo healthcheck passes.
+        # This eliminates the classic startup race condition where Flask tries
+        # to connect before MongoDB is ready.
+        condition: service_healthy
+
+volumes:
+  mongo_data:
+    driver: local
