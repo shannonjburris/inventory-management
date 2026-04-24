@@ -96,7 +96,7 @@ def create_product(db, payload: ProductCreate) -> dict:
     # insert_one returns metadata, not the document itself — we attach the
     # generated ID back onto our dict so _serialize can convert it to a string
     document["_id"] = result.inserted_id
-    logger.info("Product created: id=%s name=%s", result.inserted_id, payload.product_name)
+    logger.info("Product created: id=%s", result.inserted_id)
     return _serialize(document)
 
 
@@ -145,7 +145,7 @@ def delete_product(db, product_id: str) -> dict:
     if doc is None:
         logger.warning("Product not found for deletion: id=%s", product_id)
         abort(404, description="Product not found")
-    logger.info("Product deleted: id=%s name=%s", product_id, doc.get("product_name"))
+    logger.info("Product deleted: id=%s", product_id)
     return _serialize(doc)
 
 

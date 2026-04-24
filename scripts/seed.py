@@ -195,7 +195,9 @@ def seed():
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
 
-    print(f"Connected to MongoDB: {MONGO_URI}")
+    # Log the host only — never print the full URI as it may contain credentials
+    host = MONGO_URI.split("@")[-1].split("/")[0]
+    print(f"Connected to MongoDB: {host}")
     print(f"Database: {DB_NAME}")
 
     # 1. Drop the collection so re-runs are idempotent

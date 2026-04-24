@@ -11,7 +11,9 @@ services:
       # Run `docker-compose down -v` to wipe data and start fresh.
       - mongo_data:/data/db
     ports:
-      - "27017:27017"   # exposed so Compass / mongosh can connect locally
+      # DEV ONLY — remove this port mapping before deploying to production.
+      # MongoDB should only be reachable from within the Docker network, not the host.
+      - "27017:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s

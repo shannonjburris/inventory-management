@@ -10,6 +10,10 @@ import mongomock
 
 from app import create_app
 
+# A valid ObjectId format that will never exist in the test database.
+# Used across tests that verify 404 behaviour — defined once to avoid magic strings.
+NONEXISTENT_ID = "000000000000000000000000"
+
 
 @pytest.fixture()
 def app():

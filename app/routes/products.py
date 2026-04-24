@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, abort
-from pydantic import ValidationError
+from pydantic import ValidationError  # used by _validate helper
 
 from app.extensions import get_db
 from app.models.product import ProductCreate, ProductUpdate
@@ -30,6 +30,18 @@ def _parse_json_body():
     return body
 
 
+def _validate(model_class, body):
+    """
+    Run Pydantic validation and convert ValidationError into a 400 abort.
+    Centralises the try/except so each route stays to a single line.
+    exc.errors() returns every failure at once — clients fix all problems in one round trip.
+    """
+    try:
+        return model_class.model_validate(body)
+    except ValidationError as exc:
+        abort(400, description=exc.errors())
+
+
 # ---------------------------------------------------------------------------
 # Routes — order matters!
 # /analytics must be registered BEFORE /<product_id>.
@@ -50,13 +62,14 @@ def get_analytics():
 @products_bp.route("/", methods=["GET"])
 def list_products():
     """GET /products — return all products, or search via ?search=<query>."""
+    db = get_db()
     query = request.args.get("search", "").strip()
     if query:
-        db = get_db()
+        # Cap query length to prevent DoS via extremely large regex patterns
+        if len(query) > 200:
+            abort(400, description="Search query must not exceed 200 characters")
         return jsonify(product_service.search_products(db, query)), 200
-    db = get_db()
-    products = product_service.get_all_products(db)
-    return jsonify(products), 200
+    return jsonify(product_service.get_all_products(db)), 200
 
 
 @products_bp.route("/<product_id>", methods=["GET"])
@@ -71,35 +84,16 @@ def get_product(product_id: str):
 @products_bp.route("/", methods=["POST"])
 def create_product():
     """POST /products — create a new product."""
-    body = _parse_json_body()
-
-    try:
-        # Hand the raw dict to Pydantic — it validates all fields and raises
-        # ValidationError if anything is missing, the wrong type, or out of range
-        payload = ProductCreate.model_validate(body)
-    except ValidationError as exc:
-        # exc.errors() returns every validation failure at once so the client
-        # can fix all problems in one round trip rather than one at a time
-        abort(400, description=exc.errors())
-
-    db = get_db()
-    created = product_service.create_product(db, payload)
+    payload = _validate(ProductCreate, _parse_json_body())
+    created = product_service.create_product(get_db(), payload)
     return jsonify(created), 201  # 201 Created is the correct status for a successful POST
 
 
 @products_bp.route("/<product_id>", methods=["PUT"])
 def update_product(product_id: str):
     """PUT /products/<id> — partially update an existing product."""
-    body = _parse_json_body()
-
-    try:
-        # ProductUpdate has all optional fields — only provided fields will be updated
-        payload = ProductUpdate.model_validate(body)
-    except ValidationError as exc:
-        abort(400, description=exc.errors())
-
-    db = get_db()
-    updated = product_service.update_product(db, product_id, payload)
+    payload = _validate(ProductUpdate, _parse_json_body())
+    updated = product_service.update_product(get_db(), product_id, payload)
     return jsonify(updated), 200
 
 

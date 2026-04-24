@@ -2,6 +2,11 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+def _round_price(value: float | None) -> float | None:
+    """Normalize price to 2 decimal places. Shared by both Pydantic models."""
+    return round(value, 2) if value is not None else None
+
+
 class ProductCreate(BaseModel):
     """
     Validates the request body for POST /products.
@@ -21,10 +26,9 @@ class ProductCreate(BaseModel):
     @field_validator("price")
     @classmethod
     def round_price(cls, value: float) -> float:
-        # Normalize to 2 decimal places before storing.
         # Floating-point math can produce values like 19.999999999 — rounding here
         # ensures the database always holds clean values like 20.0
-        return round(value, 2)
+        return _round_price(value)
 
 
 class ProductUpdate(BaseModel):
@@ -46,5 +50,4 @@ class ProductUpdate(BaseModel):
     @field_validator("price", mode="before")
     @classmethod
     def round_price(cls, value: Optional[float]) -> Optional[float]:
-        # Same rounding as ProductCreate, but guard against None since price is optional here
-        return round(value, 2) if value is not None else None
+        return _round_price(value)

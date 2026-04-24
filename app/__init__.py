@@ -7,8 +7,14 @@ from app.config import CONFIG_MAP
 from app.extensions import init_mongo
 from app.errors.handlers import register_error_handlers
 
-# Module-level logger — each log line will be prefixed with this module's name
-# making it easy to filter logs by source when debugging production issues
+# Run once at import time — not inside create_app — so repeated calls during
+# tests don't re-parse the .env file or re-acquire the logging lock each time
+load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,15 +28,6 @@ def create_app(env: str | None = None) -> Flask:
     with each other. The factory produces a fresh, isolated instance each call —
     one per test, one for production, one for development.
     """
-    load_dotenv()  # read .env file into environment variables before anything else
-
-    # Configure logging format once at startup.
-    # In production this output is captured by gunicorn and visible via `docker-compose logs api`
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-    )
-
     app = Flask(__name__)
 
     # Use the passed-in env, or fall back to the APP_ENV environment variable.

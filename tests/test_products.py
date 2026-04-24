@@ -1,4 +1,5 @@
 """Tests for CRUD endpoints: GET, POST, PUT, DELETE /products."""
+from tests.conftest import NONEXISTENT_ID
 
 
 class TestListProducts:
@@ -23,7 +24,7 @@ class TestGetProduct:
         assert response.get_json()["id"] == product_id
 
     def test_returns_404_for_unknown_id(self, client):
-        response = client.get("/products/000000000000000000000000")
+        response = client.get(f"/products/{NONEXISTENT_ID}")
         assert response.status_code == 404
 
     def test_returns_400_for_invalid_id_format(self, client):
@@ -72,7 +73,7 @@ class TestUpdateProduct:
         assert response.get_json()["product_name"] == "Test Feeder"
 
     def test_returns_404_for_unknown_product(self, client):
-        response = client.put("/products/000000000000000000000000", json={"price": 10.0})
+        response = client.put(f"/products/{NONEXISTENT_ID}", json={"price": 10.0})
         assert response.status_code == 404
 
     def test_returns_400_for_empty_update_body(self, client, sample_product):
@@ -124,5 +125,5 @@ class TestDeleteProduct:
         assert get_response.status_code == 404
 
     def test_returns_404_for_unknown_product(self, client):
-        response = client.delete("/products/000000000000000000000000")
+        response = client.delete(f"/products/{NONEXISTENT_ID}")
         assert response.status_code == 404
