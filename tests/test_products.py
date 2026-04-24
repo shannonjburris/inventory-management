@@ -81,6 +81,38 @@ class TestUpdateProduct:
         assert response.status_code == 400
 
 
+class TestSearchProducts:
+    def test_returns_matching_products(self, client):
+        client.post("/products", json={
+            "product_name": "Tube Feeder",
+            "product_category": "Feeders",
+            "price": 24.99,
+            "available_quantity": 30,
+        })
+        client.post("/products", json={
+            "product_name": "Bluebird House",
+            "product_category": "Birdhouses",
+            "price": 44.99,
+            "available_quantity": 10,
+        })
+        response = client.get("/products?search=feeder")
+        assert response.status_code == 200
+        results = response.get_json()
+        assert len(results) == 1
+        assert results[0]["product_name"] == "Tube Feeder"
+
+    def test_returns_empty_list_for_no_matches(self, client, sample_product):
+        response = client.get("/products?search=zzznomatch")
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+    def test_blank_search_returns_all_products(self, client, sample_product):
+        # An empty ?search= param falls through to the normal list behaviour
+        response = client.get("/products?search=")
+        assert response.status_code == 200
+        assert len(response.get_json()) == 1
+
+
 class TestDeleteProduct:
     def test_deletes_product_successfully(self, client, sample_product):
         product_id = sample_product["id"]

@@ -178,6 +178,38 @@ curl -X DELETE http://localhost:5000/products/6630a1b2c3d4e5f6a7b8c9d0
 
 ---
 
+### Search products
+```
+GET /products?search=<query>
+```
+```bash
+curl "http://localhost:5000/products?search=feeder"
+```
+Case-insensitive. Matches against both `product_name` and `product_category`.  
+An empty or omitted `search` param returns the full product list.
+
+**Response 200:** array of matching products (empty array if no matches)
+
+---
+
+### Health check
+```
+GET /health
+```
+```bash
+curl http://localhost:5000/health
+```
+**Response 200** — API is up and MongoDB is reachable:
+```json
+{"status": "healthy", "database": "connected"}
+```
+**Response 503** — MongoDB is unreachable:
+```json
+{"status": "unhealthy", "database": "disconnected"}
+```
+
+---
+
 ### Analytics
 ```
 GET /products/analytics
@@ -244,6 +276,39 @@ inventory-management/
 ├── docker-compose.yml       # Flask + MongoDB with health-check dependency
 └── requirements.txt
 ```
+
+---
+
+## Troubleshooting
+
+**API returns 503 on `/health`**  
+MongoDB isn't reachable. Check the container is running and healthy:
+```bash
+docker-compose ps
+docker-compose logs mongo
+```
+
+**`docker-compose up` starts the API but it crashes immediately**  
+MongoDB likely didn't pass its healthcheck in time. Check its logs, then restart:
+```bash
+docker-compose logs mongo
+docker-compose restart api
+```
+
+**Products list is empty after startup**  
+The database needs to be seeded manually:
+```bash
+docker exec inventory_api python scripts/seed.py
+```
+
+**Port 5000 already in use**  
+Another process is using the port. Find and stop it, or change the port mapping in `docker-compose.yml` from `"5000:5000"` to e.g. `"5001:5000"`.
+
+**View live API logs**  
+```bash
+docker-compose logs -f api
+```
+All requests, errors, and create/update/delete operations are logged here.
 
 ---
 
