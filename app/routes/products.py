@@ -43,11 +43,9 @@ def _validate(model_class, body):
 
 
 # ---------------------------------------------------------------------------
-# Routes — order matters!
-# /analytics must be registered BEFORE /<product_id>.
-# Flask matches routes top to bottom — if /<product_id> came first, a request
-# to /products/analytics would be treated as "get product with ID 'analytics'",
-# which would return a 400 invalid ID error instead of the analytics data.
+# Flask's router (Werkzeug) ranks routes by specificity, not registration order.
+# Static segments like /analytics always take precedence over variable segments
+# like /<product_id>, so route order here does not affect behavior.
 # ---------------------------------------------------------------------------
 
 @products_bp.route("/analytics", methods=["GET"])

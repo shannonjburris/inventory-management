@@ -231,7 +231,9 @@ def get_analytics(db) -> dict:
     # $facet always returns one document even on an empty collection, but the
     # arrays inside will be empty and total_products will be missing.
     # Return explicit zero defaults so the response shape is always consistent.
-    if not results or not results[0].get("total_products"):
+    # Check for None explicitly — not a truthiness test — so a legitimate
+    # total_products of 0 would not incorrectly trigger the empty-collection defaults.
+    if not results or results[0].get("total_products") is None:
         return {
             "total_products": 0,
             "overall_avg_price": 0.0,
