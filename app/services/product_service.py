@@ -104,15 +104,14 @@ def update_product(db, product_id: str, payload: ProductUpdate) -> dict:
     """
     Partially update a product — only fields the client explicitly sent are changed.
 
-    model_dump() turns the Pydantic model into a dict. Fields the client didn't
-    send default to None. The comprehension filters those out so $set only
-    touches fields that were actually provided — sending {"price": 39.99}
-    won't accidentally wipe out product_name or available_quantity.
+    exclude_unset=True relies on Pydantic's field-set tracking to include only
+    fields the client actually provided, regardless of their value. This correctly
+    distinguishes "field omitted" (skip it) from "field explicitly set to null"
+    (apply it), which a None-filter cannot do.
     """
     oid = parse_object_id(product_id)
 
-    # Keep only fields that were actually provided (non-None)
-    fields_to_update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    fields_to_update = payload.model_dump(exclude_unset=True)
 
     if not fields_to_update:
         abort(400, description="Request body must contain at least one field to update")
