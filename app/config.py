@@ -6,6 +6,7 @@ class BaseConfig:
     JSON_SORT_KEYS = False      # preserve insertion order in JSON responses
     PROPAGATE_EXCEPTIONS = True # let unhandled exceptions reach our error handlers
                                 # rather than being swallowed silently by Flask
+    MAX_CONTENT_LENGTH = 1 * 1024 * 1024  # reject request bodies larger than 1 MB
 
 
 # Each environment is its own class rather than a single class with if/else blocks.

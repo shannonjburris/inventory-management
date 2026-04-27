@@ -4,6 +4,7 @@ from pydantic import ValidationError  # used by _validate helper
 from app.extensions import get_db
 from app.models.product import ProductCreate, ProductUpdate
 from app.services import product_service
+from app.services.product_service import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 
 # A Blueprint is a group of related routes that can be registered on the app.
 # Keeping routes in a blueprint instead of directly on the app means this file
@@ -19,14 +20,13 @@ def _parse_json_body():
     """
     Safely parse the JSON request body before passing it to a validator.
 
-    force=True  — parse as JSON even if the Content-Type header is missing or wrong
-    silent=True — return None instead of raising an exception on malformed JSON
-    Without this, a client sending plain text or broken JSON would cause an
-    unhandled exception instead of a clean 400 response.
+    silent=True — return None instead of raising an exception on malformed JSON.
+    Omitting force=True means Flask requires Content-Type: application/json,
+    rejecting form-encoded or plain-text bodies before they reach Pydantic.
     """
-    body = request.get_json(force=True, silent=True)
+    body = request.get_json(silent=True)
     if body is None:
-        abort(400, description="Request body must be valid JSON")
+        abort(400, description="Request body must be valid JSON with Content-Type: application/json")
     return body
 
 
@@ -59,7 +59,7 @@ def get_analytics():
 @products_bp.route("", methods=["GET"])
 @products_bp.route("/", methods=["GET"])
 def list_products():
-    """GET /products — return all products, or search via ?search=<query>."""
+    """GET /products — return paginated products, or search via ?search=<query>."""
     db = get_db()
     query = request.args.get("search", "").strip()
     if query:
@@ -67,7 +67,17 @@ def list_products():
         if len(query) > 200:
             abort(400, description="Search query must not exceed 200 characters")
         return jsonify(product_service.search_products(db, query)), 200
-    return jsonify(product_service.get_all_products(db)), 200
+
+    try:
+        limit = int(request.args.get("limit", DEFAULT_PAGE_SIZE))
+    except ValueError:
+        abort(400, description="limit must be an integer")
+    if not 1 <= limit <= MAX_PAGE_SIZE:
+        abort(400, description=f"limit must be between 1 and {MAX_PAGE_SIZE}")
+
+    after = request.args.get("after")
+    products, next_cursor = product_service.get_all_products(db, limit=limit, after=after)
+    return jsonify({"data": products, "next_cursor": next_cursor}), 200
 
 
 @products_bp.route("/<product_id>", methods=["GET"])

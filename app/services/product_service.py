@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from bson.errors import InvalidId
 from flask import abort
+from pymongo import ReturnDocument
 
 from app.models.product import ProductCreate, ProductUpdate
 
@@ -23,8 +24,7 @@ def _serialize(doc: dict) -> dict:
     This function converts ObjectId → plain string and renames _id → id.
     Every function that returns data to the route layer calls this.
     """
-    doc["id"] = str(doc.pop("_id"))
-    return doc
+    return {"id": str(doc["_id"]), **{k: v for k, v in doc.items() if k != "_id"}}
 
 
 def parse_object_id(id_str: str) -> ObjectId:
@@ -51,10 +51,34 @@ def _now() -> datetime:
 # CRUD operations
 # ---------------------------------------------------------------------------
 
-def get_all_products(db) -> list[dict]:
-    """Return all products, newest first."""
-    cursor = db.products.find().sort("created_at", -1)
-    return [_serialize(doc) for doc in cursor]
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 100
+
+
+def get_all_products(
+    db, limit: int = DEFAULT_PAGE_SIZE, after: str | None = None
+) -> tuple[list[dict], str | None]:
+    """
+    Return products newest-first with cursor pagination.
+
+    Fetches limit+1 documents — if the extra one exists there is a next page,
+    and its id becomes the next_cursor the client passes as ?after= on the next request.
+    """
+    query = {}
+    if after:
+        query["_id"] = {"$lt": parse_object_id(after)}
+
+    docs = [
+        _serialize(doc)
+        for doc in db.products.find(query).sort("_id", -1).limit(limit + 1)
+    ]
+
+    next_cursor = None
+    if len(docs) > limit:
+        docs = docs[:limit]
+        next_cursor = docs[-1]["id"]
+
+    return docs, next_cursor
 
 
 def search_products(db, query: str) -> list[dict]:
@@ -118,13 +142,10 @@ def update_product(db, product_id: str, payload: ProductUpdate) -> dict:
 
     fields_to_update["updated_at"] = _now()
 
-    # find_one_and_update atomically finds, updates, and returns the document.
-    # return_document=True returns the version AFTER the update so the response
-    # reflects what was actually saved, not the old values
     result = db.products.find_one_and_update(
         {"_id": oid},
         {"$set": fields_to_update},
-        return_document=True,
+        return_document=ReturnDocument.AFTER,
     )
 
     if result is None:
@@ -190,7 +211,8 @@ _ANALYTICS_PIPELINE = [
                         "max_price": {"$max": "$price"},
                     }
                 },
-                {"$sort": {"count": -1}},  # most products first — index 0 will be the most popular
+                # most products first; _id breaks ties so most_popular_category is deterministic
+                {"$sort": {"count": -1, "_id": 1}},
                 {
                     # $project reshapes the output — rename fields and drop _id
                     "$project": {

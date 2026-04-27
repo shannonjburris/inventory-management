@@ -10,10 +10,6 @@ services:
       # Named volume: data persists across `docker-compose down` / `up` cycles.
       # Run `docker-compose down -v` to wipe data and start fresh.
       - mongo_data:/data/db
-    ports:
-      # DEV ONLY — remove this port mapping before deploying to production.
-      # MongoDB should only be reachable from within the Docker network, not the host.
-      - "27017:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -27,7 +23,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: inventory_api
-    restart: unless-stopped
+    restart: on-failure:5
     environment:
       MONGO_URI: "mongodb://mongo:27017/inventory"   # 'mongo' = the service name above
       APP_ENV: "production"

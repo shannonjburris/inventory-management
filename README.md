@@ -27,7 +27,9 @@ cd inventory-management
 docker-compose up --build -d
 
 # 3. Seed the database with 15 sample bird products
-docker exec inventory_api python scripts/seed.py
+# APP_ENV=development overrides the production guard in seed.py —
+# the Docker container runs with APP_ENV=production, which blocks the seed by default.
+docker exec -e APP_ENV=development inventory_api python scripts/seed.py
 
 # 4. The API is now running at http://localhost:5000
 curl http://localhost:5000/products
@@ -296,9 +298,13 @@ docker-compose restart api
 ```
 
 **Products list is empty after startup**  
-The database needs to be seeded manually:
+The database needs to be seeded manually. The `-e APP_ENV=development` override is required because the container runs with `APP_ENV=production`, which blocks the seed script by default:
 ```bash
-docker exec inventory_api python scripts/seed.py
+docker exec -e APP_ENV=development inventory_api python scripts/seed.py
+```
+To wipe and reseed from scratch, add `--reset`:
+```bash
+docker exec -e APP_ENV=development inventory_api python scripts/seed.py --reset
 ```
 
 **Port 5000 already in use**  

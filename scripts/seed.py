@@ -4,10 +4,14 @@ Seed script — populates the inventory database with sample bird-themed product
 Run locally:   python scripts/seed.py
 Run in Docker: docker exec inventory_api python scripts/seed.py
 
-The script is idempotent: it drops the existing collection before inserting,
-so re-running it always produces a clean, consistent dataset.
+Default behaviour (safe idempotent): upserts each product by product_name.
+Existing records are left untouched; only missing ones are inserted.
+
+Pass --reset to drop and recreate the collection from scratch. This is
+destructive and is blocked when APP_ENV=production.
 """
 
+import argparse
 import os
 import sys
 from datetime import datetime, timezone
@@ -17,7 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
-from pymongo import MongoClient, ASCENDING, TEXT
+from pymongo import MongoClient, ASCENDING
+from pymongo.errors import CollectionInvalid
 
 load_dotenv()
 
@@ -191,7 +196,26 @@ SAMPLE_PRODUCTS = [
 ]
 
 
-def seed():
+def _ensure_collection(db):
+    """Create the products collection if it doesn't exist, then apply the validator and indexes."""
+    try:
+        db.create_collection("products", validator=PRODUCT_VALIDATOR, validationLevel="strict")
+        print("Created 'products' collection with schema validator")
+    except CollectionInvalid:
+        # Collection already exists — update the validator in place without touching data.
+        db.command("collMod", "products", validator=PRODUCT_VALIDATOR, validationLevel="strict")
+        print("Updated schema validator on existing 'products' collection")
+
+    db.products.create_index([("product_category", ASCENDING)], name="category_idx")
+    db.products.create_index([("price", ASCENDING)], name="price_idx")
+    print("Indexes ensured: category_idx, price_idx")
+
+
+def seed(reset: bool = False):
+    if os.getenv("APP_ENV") == "production":
+        print("ERROR: seed.py refused to run against a production database (APP_ENV=production)")
+        sys.exit(1)
+
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
 
@@ -200,27 +224,37 @@ def seed():
     print(f"Connected to MongoDB: {host}")
     print(f"Database: {DB_NAME}")
 
-    # 1. Drop the collection so re-runs are idempotent
-    db.products.drop()
-    print("Dropped existing 'products' collection")
+    if reset:
+        db.products.drop()
+        print("Dropped existing 'products' collection")
+        _ensure_collection(db)
+        db.products.insert_many(SAMPLE_PRODUCTS)
+        print(f"Inserted {len(SAMPLE_PRODUCTS)} products")
+    else:
+        _ensure_collection(db)
+        inserted = 0
+        for product in SAMPLE_PRODUCTS:
+            result = db.products.update_one(
+                {"product_name": product["product_name"]},
+                # $setOnInsert only writes on a new insert — existing records are untouched
+                {"$setOnInsert": product},
+                upsert=True,
+            )
+            if result.upserted_id:
+                inserted += 1
+        skipped = len(SAMPLE_PRODUCTS) - inserted
+        print(f"Upserted {inserted} new products, skipped {skipped} existing")
 
-    # 2. Re-create the collection with the JSON Schema validator
-    db.create_collection("products", validator=PRODUCT_VALIDATOR, validationLevel="strict")
-    print("Created 'products' collection with schema validator")
-
-    # 3. Create indexes for efficient querying and analytics
-    db.products.create_index([("product_category", ASCENDING)], name="category_idx")
-    db.products.create_index([("price", ASCENDING)], name="price_idx")
-    db.products.create_index([("product_name", TEXT)], name="name_text_idx")
-    print("Created indexes: category_idx, price_idx, name_text_idx")
-
-    # 4. Insert sample products
-    result = db.products.insert_many(SAMPLE_PRODUCTS)
-    print(f"Inserted {len(result.inserted_ids)} bird-themed products across 5 categories")
     print("Seed complete!")
-
     client.close()
 
 
 if __name__ == "__main__":
-    seed()
+    parser = argparse.ArgumentParser(description="Seed the inventory database with sample products")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Drop and recreate the collection (destructive — blocked when APP_ENV=production)",
+    )
+    args = parser.parse_args()
+    seed(reset=args.reset)
