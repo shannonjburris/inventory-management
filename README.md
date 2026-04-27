@@ -95,7 +95,7 @@ curl http://localhost:5000/products
 ```json
 [
   {
-    "id": "6630a1b2c3d4e5f6a7b8c9d0",
+    "id": "69eeaa336a26e6e0f4037628",
     "product_name": "Copper Tube Hummingbird Feeder",
     "product_category": "Feeders",
     "price": 34.99,
@@ -113,7 +113,7 @@ curl http://localhost:5000/products
 GET /products/{id}
 ```
 ```bash
-curl http://localhost:5000/products/6630a1b2c3d4e5f6a7b8c9d0
+curl http://localhost:5000/products/69eeaa336a26e6e0f4037628
 ```
 **Response 200:** single product object  
 **Response 400:** invalid ID format  
@@ -155,7 +155,7 @@ Content-Type: application/json
 ```
 All fields are optional — send only the ones you want to change.
 ```bash
-curl -X PUT http://localhost:5000/products/6630a1b2c3d4e5f6a7b8c9d0 \
+curl -X PUT http://localhost:5000/products/69eeaa336a26e6e0f4037628 \
   -H "Content-Type: application/json" \
   -d '{"price": 29.99, "available_quantity": 100}'
 ```
@@ -170,7 +170,7 @@ curl -X PUT http://localhost:5000/products/6630a1b2c3d4e5f6a7b8c9d0 \
 DELETE /products/{id}
 ```
 ```bash
-curl -X DELETE http://localhost:5000/products/6630a1b2c3d4e5f6a7b8c9d0
+curl -X DELETE http://localhost:5000/products/69eeaa336a26e6e0f4037628
 ```
 **Response 200:**
 ```json
